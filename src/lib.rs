@@ -2,7 +2,7 @@ use data_encoding::HEXLOWER;
 use rayon::prelude::*;
 use ring::digest;
 use std::fmt::Display;
-use std::fs::{read_to_string, File};
+use std::fs::File;
 use std::io::BufReader;
 use std::io::{Error, Read};
 use std::path::Path;
@@ -14,7 +14,7 @@ pub enum Status {
     Ok,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Outcome {
     pub message: String,
     pub status: Status,
@@ -51,12 +51,12 @@ pub fn get_digest<R: Read>(input: R) -> Result<String, Error> {
     Ok(HEXLOWER.encode(digest.as_ref()))
 }
 
-pub fn check_files(input: String) -> Vec<Outcome> {
+pub fn verify_files(input: String) -> Vec<Outcome> {
     input
         .par_lines()
         .map(|line| {
             if let Some((file_digest, file_name)) = line.split_once("  ") {
-                check_line(file_name, file_digest)
+                verify_file(Path::new(file_name), file_digest)
             } else {
                 Outcome {
                     message: line.to_string(),
@@ -67,65 +67,57 @@ pub fn check_files(input: String) -> Vec<Outcome> {
         .collect()
 }
 
-fn check_line(file_name: &str, file_digest: &str) -> Outcome {
-    match File::open(file_name) {
+fn verify_file(file: &Path, file_digest: &str) -> Outcome {
+    let outcome = match File::open(file) {
         Ok(fd) => match get_digest(fd) {
-            Ok(digest) => {
-                if digest == file_digest {
-                    Outcome {
-                        message: file_name.to_string(),
-                        status: Status::Ok,
-                    }
+            Ok(digest) => Outcome {
+                message: format!("{}", file.display()),
+                status: if digest == file_digest {
+                    Status::Ok
                 } else {
-                    Outcome {
-                        message: file_name.to_string(),
-                        status: Status::Fail,
-                    }
-                }
-            }
-            Err(err) => Outcome {
-                message: err.to_string(),
+                    Status::Fail
+                },
+            },
+            Err(error) => Outcome {
+                message: format!("{}: {error}", file.display()),
                 status: Status::Error,
             },
         },
         Err(error) => Outcome {
-            message: format!("{file_name}: {error}"),
-            status: Status::Error,
-        },
-    }
-}
-
-pub fn handle_file(file: &Path, check: bool, bsd_style: bool) -> Vec<Outcome> {
-    match File::open(file) {
-        Ok(input) => {
-            if check {
-                // TODO: This won't print progress, only everything when finished.
-                let content = read_to_string(file).unwrap();
-                check_files(content)
-            } else {
-                match get_digest(input) {
-                    Ok(digest) => {
-                        let result = if bsd_style {
-                            format!("SHA256 ({}) = {}", file.display(), digest)
-                        } else {
-                            format!("{}  {}", digest, file.display())
-                        };
-                        vec![Outcome {
-                            message: result,
-                            status: Status::Ok,
-                        }]
-                    }
-                    Err(error) => vec![Outcome {
-                        message: format!("{}: {error}", file.display()),
-                        status: Status::Error,
-                    }],
-                }
-            }
-        }
-        Err(error) => vec![Outcome {
             message: format!("{}: {error}", file.display()),
             status: Status::Error,
-        }],
+        },
+    };
+    match outcome.status {
+        Status::Ok => println!("{outcome}"),
+        _ => eprintln!("{outcome}"),
+    };
+    outcome
+}
+
+pub fn handle_file(file: &Path, bsd_style: bool) -> Outcome {
+    match File::open(file) {
+        Ok(input) => match get_digest(input) {
+            Ok(digest) => {
+                let message = if bsd_style {
+                    format!("SHA256 ({}) = {}", file.display(), digest)
+                } else {
+                    format!("{}  {}", digest, file.display())
+                };
+                Outcome {
+                    message,
+                    status: Status::Ok,
+                }
+            }
+            Err(error) => Outcome {
+                message: format!("{}: {error}", file.display()),
+                status: Status::Error,
+            },
+        },
+        Err(error) => Outcome {
+            message: format!("{}: {error}", file.display()),
+            status: Status::Error,
+        },
     }
 }
 

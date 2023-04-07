@@ -1,11 +1,12 @@
 use std::{
+    fs::read_to_string,
     io::{stdin, Read},
     path::PathBuf,
     process::exit,
 };
 
 use rayon::prelude::*;
-use sha256sum_rs::{get_digest, handle_file, Status};
+use sha256sum_rs::{get_digest, handle_file, verify_files, Status};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -29,43 +30,62 @@ struct CliArgs {
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = CliArgs::from_args();
+    let mut result = 0;
 
     match &args.path.len() {
         // Zero files given as arguments, read from stdin
         0 => {
             let mut input = String::new();
             stdin().read_to_string(&mut input)?;
-            let digest = get_digest(input.as_bytes())?;
-
-            if args.bsd_style {
-                println!("SHA256 (-) = {}", digest);
+            if args.check {
+                result = verify_files(input)
+                    .iter()
+                    // keep only the ones that are not ok so we can exit(1) if non-empty.
+                    .filter(|o| o.status != Status::Ok)
+                    .count();
             } else {
-                println!("{}  -", digest);
+                let digest = get_digest(input.as_bytes())?;
+
+                if args.bsd_style {
+                    println!("SHA256 (-) = {}", digest);
+                } else {
+                    println!("{}  -", digest);
+                }
             }
         }
-        // Iterate over all file names in parallel and print digest.
         _ => {
-            let result = args
-                .path
-                .par_iter()
-                // handle_file returns Vec<Outcome> so flatten/explode that Vec.
-                .flat_map(|p| handle_file(p, args.check, args.bsd_style))
-                // map over values so we can print to stdout.
-                .map(|o| {
-                    if args.check {
-                        println!("{o}");
-                    } else {
-                        println!("{}", o.message);
-                    }
-                    o
-                })
-                // keep only the ones that are not ok so we can exit(1) if non-empty.
-                .filter(|o| o.status != Status::Ok)
-                .count();
-            if result != 0 {
-                exit(1)
+            if args.check {
+                if args.path.len() > 1 {
+                    eprintln!("Only a single file can be supplied when checking.");
+                    exit(1);
+                }
+                let content = read_to_string(&args.path[0]).unwrap();
+                result = verify_files(content)
+                    .iter()
+                    // keep only the ones that are not ok so we can exit(1) if non-empty.
+                    .filter(|o| o.status != Status::Ok)
+                    .count();
+            } else {
+                // Iterate over all file names in parallel and print digest.
+                result = args
+                    .path
+                    .par_iter()
+                    .map(|p| {
+                        let outcome = handle_file(p, args.bsd_style);
+                        match outcome.status {
+                            Status::Ok => println!("{}", outcome.message),
+                            _ => eprintln!("{}", outcome.message),
+                        }
+                        outcome
+                    })
+                    // keep only the ones that are not ok so we can exit(1) if non-empty.
+                    .filter(|o| o.status != Status::Ok)
+                    .count();
             }
         }
+    }
+    if result != 0 {
+        exit(1)
     }
     Ok(())
 }
