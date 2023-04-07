@@ -1,6 +1,6 @@
 [package]
 name = "sha256sum-rs"
-version = "1.0.1"
+version = "2.0.0"
 authors = ["Pål Nilsen <paal.nilsen@gmail.com>"]
 edition = "2021"
 
@@ -18,4 +18,5 @@ ring = "0.16"
 structopt = "0.3"
 
 [dev-dependencies]
+once_cell = "1.17"
 tempdir = "0.3"
