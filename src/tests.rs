@@ -40,3 +40,9 @@ fn test_get_digest() {
         assert_eq!(digest, expected.to_string());
     }
 }
+
+#[test]
+fn test_handle_file_open_error() {
+    let result: Vec<Outcome> = handle_file(Path::new("nonexisting_file"), false, false);
+    assert_eq!(result[0].status, Status::Error)
+}

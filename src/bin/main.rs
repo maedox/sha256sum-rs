@@ -1,10 +1,11 @@
 use std::{
     io::{stdin, Read},
     path::PathBuf,
+    process::exit,
 };
 
 use rayon::prelude::*;
-use sha256sum_rs::{get_digest, handle_file};
+use sha256sum_rs::{get_digest, handle_file, Status};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -43,13 +44,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         // Iterate over all file names in parallel and print digest.
-        _ => args
-            .path
-            .par_iter()
-            .for_each(|p| match handle_file(p, args.check, args.bsd_style) {
-                Ok(_) => (),
-                Err(err) => eprintln!("{err}"),
-            }),
+        _ => {
+            let result = args
+                .path
+                .par_iter()
+                // handle_file returns Vec<Outcome> so flatten/explode that Vec.
+                .flat_map(|p| handle_file(p, args.check, args.bsd_style))
+                // map over values so we can print to stdout.
+                .map(|o| {
+                    if args.check {
+                        println!("{o}");
+                    } else {
+                        println!("{}", o.message);
+                    }
+                    o
+                })
+                // keep only the ones that are not ok so we can exit(1) if non-empty.
+                .filter(|o| o.status != Status::Ok)
+                .count();
+            if result != 0 {
+                exit(1)
+            }
+        }
     }
     Ok(())
 }

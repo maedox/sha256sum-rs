@@ -1,11 +1,34 @@
 use data_encoding::HEXLOWER;
 use rayon::prelude::*;
 use ring::digest;
+use std::fmt::Display;
 use std::fs::{read_to_string, File};
 use std::io::BufReader;
 use std::io::{Error, Read};
-use std::ops::Deref;
 use std::path::Path;
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum Status {
+    Error,
+    Fail,
+    Ok,
+}
+
+#[derive(Debug)]
+pub struct Outcome {
+    pub message: String,
+    pub status: Status,
+}
+
+impl Display for Outcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.status {
+            Status::Error => write!(f, "{}: ERROR", self.message),
+            Status::Fail => write!(f, "{}: FAILED", self.message),
+            Status::Ok => write!(f, "{}: OK", self.message),
+        }
+    }
+}
 
 fn sha256_digest<R: Read>(mut reader: R) -> Result<digest::Digest, Error> {
     let mut context = digest::Context::new(&digest::SHA256);
@@ -28,61 +51,82 @@ pub fn get_digest<R: Read>(input: R) -> Result<String, Error> {
     Ok(HEXLOWER.encode(digest.as_ref()))
 }
 
-pub fn check_files<T: Deref<Target = str> + ToString + Send + Sync>(input: T) {
-    // TODO: Rip out this collect and iter on par_lines of input instead?
-    let lines: Vec<&str> = input.lines().collect();
-
-    lines.par_iter().for_each(|line| {
-        if let Some((file_digest, file_name)) = line.split_once("  ") {
-            match check_line(file_name, file_digest) {
-                Ok(text) => println!("{text}"),
-                Err(error) => println!("{error}"),
-            }
-        } else {
-            println!("{line}: FAILED")
-        }
-    });
-}
-
-fn check_line(file_name: &str, file_digest: &str) -> Result<String, Error> {
-    let fd = File::open(file_name)?;
-    match get_digest(fd) {
-        Ok(digest) => {
-            if digest == file_digest {
-                Ok(format!("{file_name}: OK"))
+pub fn check_files(input: String) -> Vec<Outcome> {
+    input
+        .par_lines()
+        .map(|line| {
+            if let Some((file_digest, file_name)) = line.split_once("  ") {
+                check_line(file_name, file_digest)
             } else {
-                Ok(format!("{file_name}: FAILED"))
+                Outcome {
+                    message: line.to_string(),
+                    status: Status::Error,
+                }
             }
-        }
-        Err(err) => Err(err),
-    }
+        })
+        .collect()
 }
 
-pub fn handle_file(file: &Path, check: bool, bsd_style: bool) -> Result<(), Error> {
-    if file.is_file() {
-        match File::open(file) {
-            Ok(input) => {
-                if check {
-                    let content = read_to_string(file)?;
-                    check_files(content);
+fn check_line(file_name: &str, file_digest: &str) -> Outcome {
+    match File::open(file_name) {
+        Ok(fd) => match get_digest(fd) {
+            Ok(digest) => {
+                if digest == file_digest {
+                    Outcome {
+                        message: file_name.to_string(),
+                        status: Status::Ok,
+                    }
                 } else {
-                    let digest = get_digest(input)?;
-
-                    if bsd_style {
-                        println!("SHA256 ({}) = {}", file.display(), digest);
-                    } else {
-                        println!("{}  {}", digest, file.display());
+                    Outcome {
+                        message: file_name.to_string(),
+                        status: Status::Fail,
                     }
                 }
             }
-            Err(error) => {
-                eprintln!("{:?}: {}", &file, error);
+            Err(err) => Outcome {
+                message: err.to_string(),
+                status: Status::Error,
+            },
+        },
+        Err(error) => Outcome {
+            message: format!("{file_name}: {error}"),
+            status: Status::Error,
+        },
+    }
+}
+
+pub fn handle_file(file: &Path, check: bool, bsd_style: bool) -> Vec<Outcome> {
+    match File::open(file) {
+        Ok(input) => {
+            if check {
+                // TODO: This won't print progress, only everything when finished.
+                let content = read_to_string(file).unwrap();
+                check_files(content)
+            } else {
+                match get_digest(input) {
+                    Ok(digest) => {
+                        let result = if bsd_style {
+                            format!("SHA256 ({}) = {}", file.display(), digest)
+                        } else {
+                            format!("{}  {}", digest, file.display())
+                        };
+                        vec![Outcome {
+                            message: result,
+                            status: Status::Ok,
+                        }]
+                    }
+                    Err(error) => vec![Outcome {
+                        message: format!("{}: {error}", file.display()),
+                        status: Status::Error,
+                    }],
+                }
             }
         }
-    } else {
-        eprintln!("{}: Is not a file.", file.display());
+        Err(error) => vec![Outcome {
+            message: format!("{}: {error}", file.display()),
+            status: Status::Error,
+        }],
     }
-    Ok(())
 }
 
 #[cfg(test)]
