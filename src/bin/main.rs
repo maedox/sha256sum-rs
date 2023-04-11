@@ -6,7 +6,7 @@ use std::{
 };
 
 use rayon::prelude::*;
-use sha256sum_rs::{get_digest, handle_file, verify_files, Status};
+use sha256sum_rs::{get_digest, handle_file, verify_files, Outcome, Status};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -28,6 +28,28 @@ struct CliArgs {
     #[structopt(long = "--tag", help = "create a BSD-style checksum")]
     bsd_style: bool,
 }
+
+fn handle_result(outcomes: Vec<Outcome>) -> usize {
+    let mut code = 0;
+    let count_errors = outcomes
+        .iter()
+        .filter(|o| o.status == Status::Error)
+        .count();
+    let count_fails = outcomes.iter().filter(|o| o.status == Status::Fail).count();
+    if count_errors > 0 {
+        eprintln!(
+            "WARNING: {} error(s) occured while verifying checksums.",
+            count_errors
+        );
+        code += 1;
+    };
+    if count_fails > 0 {
+        eprintln!("WARNING: {} computed checksums did NOT match.", count_fails);
+        code += 1;
+    };
+    code
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = CliArgs::from_args();
     let mut result = 0;
@@ -38,11 +60,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut input = String::new();
             stdin().read_to_string(&mut input)?;
             if args.check {
-                result = verify_files(input)
-                    .iter()
-                    // keep only the ones that are not ok so we can exit(1) if non-empty.
-                    .filter(|o| o.status != Status::Ok)
-                    .count();
+                let outcomes = verify_files(input);
+                result = handle_result(outcomes);
             } else {
                 let digest = get_digest(input.as_bytes())?;
 
@@ -60,14 +79,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     exit(1);
                 }
                 let content = read_to_string(&args.path[0]).unwrap();
-                result = verify_files(content)
-                    .iter()
-                    // keep only the ones that are not ok so we can exit(1) if non-empty.
-                    .filter(|o| o.status != Status::Ok)
-                    .count();
+                let outcomes = verify_files(content);
+                result = handle_result(outcomes);
             } else {
                 // Iterate over all file names in parallel and print digest.
-                result = args
+                let outcomes = args
                     .path
                     .par_iter()
                     .map(|p| {
@@ -78,14 +94,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         outcome
                     })
-                    // keep only the ones that are not ok so we can exit(1) if non-empty.
-                    .filter(|o| o.status != Status::Ok)
-                    .count();
+                    .collect();
+                result = handle_result(outcomes);
             }
         }
     }
     if result != 0 {
-        exit(1)
+        exit(result as i32)
     }
     Ok(())
 }

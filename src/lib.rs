@@ -58,10 +58,15 @@ pub fn verify_files(input: String) -> Vec<Outcome> {
             if let Some((file_digest, file_name)) = line.split_once("  ") {
                 verify_file(Path::new(file_name), file_digest)
             } else {
-                Outcome {
-                    message: line.to_string(),
+                let outcome = Outcome {
+                    message: format!(
+                        "Checksum and filename could not be read from line: {}",
+                        line
+                    ),
                     status: Status::Error,
-                }
+                };
+                eprintln!("{outcome}");
+                outcome
             }
         })
         .collect()
@@ -79,10 +84,11 @@ fn verify_file(file: &Path, file_digest: &str) -> Outcome {
                 },
             },
             Err(error) => Outcome {
-                message: format!("{}: {error}", file.display()),
+                message: format!("{}: Failed to compute checksum: {error}", file.display()),
                 status: Status::Error,
             },
         },
+        // File::open failed.
         Err(error) => Outcome {
             message: format!("{}: {error}", file.display()),
             status: Status::Error,
@@ -110,10 +116,11 @@ pub fn handle_file(file: &Path, bsd_style: bool) -> Outcome {
                 }
             }
             Err(error) => Outcome {
-                message: format!("{}: {error}", file.display()),
+                message: format!("{}: Failed to compute checksum: {error}", file.display()),
                 status: Status::Error,
             },
         },
+        // File::open failed.
         Err(error) => Outcome {
             message: format!("{}: {error}", file.display()),
             status: Status::Error,
