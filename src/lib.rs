@@ -30,6 +30,44 @@ impl Display for Outcome {
     }
 }
 
+pub trait HandleResult {
+    fn handle_result(&self) -> usize;
+}
+
+impl HandleResult for Vec<Outcome> {
+    fn handle_result(&self) -> usize {
+        let errors_code = handle_errors(self);
+        let failures_code = handle_failures(self);
+        errors_code + failures_code
+    }
+}
+
+fn handle_errors(outcomes: &[Outcome]) -> usize {
+    // Count errors and return the appropriate status code.
+    match outcomes
+        .iter()
+        .filter(|o| o.status == Status::Error)
+        .count()
+    {
+        count if count > 0 => {
+            eprintln!("WARNING: {} error(s) occured while checking.", count);
+            1
+        }
+        _ => 0,
+    }
+}
+
+fn handle_failures(outcomes: &[Outcome]) -> usize {
+    // Count failures and return the appropriate status code.
+    match outcomes.iter().filter(|o| o.status == Status::Fail).count() {
+        count if count > 0 => {
+            eprintln!("WARNING: {} computed checksums did NOT match.", count);
+            1
+        }
+        _ => 0,
+    }
+}
+
 fn sha256_digest<R: Read>(mut reader: R) -> Result<digest::Digest, Error> {
     let mut context = digest::Context::new(&digest::SHA256);
     let mut buffer = [0; 1024];
