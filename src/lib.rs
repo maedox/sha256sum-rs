@@ -93,8 +93,8 @@ pub fn verify_files(input: String) -> Vec<Outcome> {
     input
         .par_lines()
         .map(|line| {
-            if let Some((file_digest, file_name)) = line.split_once("  ") {
-                verify_file(Path::new(file_name), file_digest)
+            if let Some((file_digest, file_name)) = line.split_once(' ') {
+                verify_file(Path::new(file_name.trim()), file_digest.trim())
             } else {
                 let outcome = Outcome {
                     message: format!(
