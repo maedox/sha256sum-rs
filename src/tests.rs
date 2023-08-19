@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Error, Write};
 use tempdir::TempDir;
 
 use super::*;
@@ -34,10 +34,10 @@ static FILES: Lazy<&[TestFile]> = Lazy::new(|| {
 });
 
 #[test]
-fn test_get_digest() {
+fn test_get_digest() -> Result<(), Error> {
     // Directly test the get_digest fn returns the expected digest.
 
-    let tmp = TempDir::new("test_sha256sum-rs").unwrap();
+    let tmp = TempDir::new("test_sha256sum-rs")?;
 
     for TestFile {
         file,
@@ -45,13 +45,14 @@ fn test_get_digest() {
     } in FILES.iter()
     {
         let file_path = tmp.path().join(file);
-        let mut temp_file = File::create(&file_path).unwrap();
-        writeln!(temp_file, "testing {file:?}").unwrap();
+        let mut temp_file = File::create(&file_path)?;
+        writeln!(temp_file, "testing {file:?}")?;
 
-        let input = File::open(file_path).unwrap();
-        let digest = get_digest(input).unwrap();
+        let input = File::open(file_path)?;
+        let digest = get_digest(input)?;
         assert_eq!(digest, expected_digest.to_string());
     }
+    Ok(())
 }
 
 #[test]
@@ -63,18 +64,18 @@ fn test_handle_file_open_error() {
 }
 
 #[test]
-fn test_handle_file() {
+fn test_handle_file() -> Result<(), Error> {
     // Hash the content of test files and verify the digest matches the expected string.
 
-    let tmp = TempDir::new("test_sha256sum-rs").unwrap();
+    let tmp = TempDir::new("test_sha256sum-rs")?;
     for TestFile {
         file,
         expected_digest,
     } in FILES.iter()
     {
         let file_path = tmp.path().join(file);
-        let mut temp_file = File::create(&file_path).unwrap();
-        writeln!(temp_file, "testing {file:?}").unwrap();
+        let mut temp_file = File::create(&file_path)?;
+        writeln!(temp_file, "testing {file:?}")?;
 
         let outcome = handle_file(file_path.as_path(), false);
         let expected_outcome = Outcome {
@@ -83,32 +84,34 @@ fn test_handle_file() {
         };
         assert_eq!(outcome, expected_outcome);
     }
+    Ok(())
 }
 
 #[test]
-fn test_verify_file() {
+fn test_verify_file() -> Result<(), Error> {
     // Write a line to the test files and test that verify_file status is Ok.
 
-    let tmp = TempDir::new("test_sha256sum-rs").unwrap();
+    let tmp = TempDir::new("test_sha256sum-rs")?;
     for TestFile {
         file,
         expected_digest,
     } in FILES.iter()
     {
         let file_path = tmp.path().join(file);
-        let mut temp_file = File::create(&file_path).unwrap();
-        writeln!(temp_file, "testing {file:?}").unwrap();
+        let mut temp_file = File::create(&file_path)?;
+        writeln!(temp_file, "testing {file:?}")?;
 
         let outcome = verify_file(file_path.as_path(), expected_digest);
         assert_eq!(outcome.status, Status::Ok)
     }
+    Ok(())
 }
 
 #[test]
-fn test_verify_file_fails() {
+fn test_verify_file_fails() -> Result<(), Error> {
     // Write the wrong content to the test files and make sure status is Fail.
 
-    let tmp = TempDir::new("test_sha256sum-rs").unwrap();
+    let tmp = TempDir::new("test_sha256sum-rs")?;
 
     for TestFile {
         file,
@@ -116,19 +119,20 @@ fn test_verify_file_fails() {
     } in FILES.iter()
     {
         let file_path = tmp.path().join(file);
-        let mut temp_file = File::create(&file_path).unwrap();
-        writeln!(temp_file, "fails {file:?}").unwrap();
+        let mut temp_file = File::create(&file_path)?;
+        writeln!(temp_file, "fails {file:?}")?;
 
         let outcome = verify_file(file_path.as_path(), expected_digest);
         assert_eq!(outcome.status, Status::Fail)
     }
+    Ok(())
 }
 
 #[test]
-fn test_verify_files() {
+fn test_verify_files() -> Result<(), Error> {
     // Read a String containing a digest and filename per line, then verify them.
 
-    let tmp = TempDir::new("test_sha256sum-rs").unwrap();
+    let tmp = TempDir::new("test_sha256sum-rs")?;
     let mut check_string = String::new();
 
     for TestFile {
@@ -137,11 +141,12 @@ fn test_verify_files() {
     } in FILES.iter()
     {
         let file_path = tmp.path().join(file);
-        let mut temp_file = File::create(&file_path).unwrap();
-        writeln!(temp_file, "testing {file:?}").unwrap();
+        let mut temp_file = File::create(&file_path)?;
+        writeln!(temp_file, "testing {file:?}")?;
         check_string += format!("{expected_digest}  {}\n", file_path.display()).as_ref();
     }
-    verify_files(check_string)
-        .iter()
-        .for_each(|o| assert_eq!(o.status, Status::Ok))
+    for outcome in verify_files(check_string) {
+        assert_eq!(outcome.status, Status::Ok)
+    }
+    Ok(())
 }
