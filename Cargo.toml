@@ -2,7 +2,7 @@
 name = "sha256sum-rs"
 version = "2.0.1"
 authors = ["Pål Nilsen <paal.nilsen@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [[bin]]
 name = "sha256sum-rs"
@@ -14,7 +14,7 @@ lto = true
 [dependencies]
 data-encoding = "2.3"
 rayon = "1.7"
-ring = "0.16"
+ring = "0.17.11"
 structopt = "0.3"
 
 [dev-dependencies]
