@@ -1,12 +1,11 @@
+use rayon::prelude::*;
+use sha256sum_rs::{get_digest, handle_file, verify_files, HandleResult, Outcome, Status};
 use std::{
     fs::read_to_string,
     io::{stdin, Read},
     path::PathBuf,
     process::exit,
 };
-
-use rayon::prelude::*;
-use sha256sum_rs::{get_digest, handle_file, verify_files, HandleResult, Outcome, Status};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
