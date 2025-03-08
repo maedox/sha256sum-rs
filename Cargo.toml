@@ -14,7 +14,7 @@ lto = true
 [dependencies]
 data-encoding = "2.3"
 rayon = "1.7"
-ring = "0.17.11"
+ring = "0.17.12"
 structopt = "0.3"
 
 [dev-dependencies]
