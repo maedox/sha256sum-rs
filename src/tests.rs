@@ -1,7 +1,7 @@
-use once_cell::sync::Lazy;
 use std::fs::File;
 use std::io::{Error, Write};
-use tempdir::TempDir;
+use std::sync::LazyLock;
+use tempfile::tempdir;
 
 use super::*;
 
@@ -10,9 +10,9 @@ struct TestFile {
     expected_digest: &'static str,
 }
 
-// Some test files, which will match the given digest if their contents are
-// "testing {file_name:?}"
-static FILES: Lazy<&[TestFile]> = Lazy::new(|| {
+/// Some test files, which will match the given digest if their contents are
+/// "testing {file_name:?}"
+static FILES: LazyLock<&[TestFile]> = LazyLock::new(|| {
     &[
         TestFile {
             file: "test1.txt",
@@ -37,7 +37,7 @@ static FILES: Lazy<&[TestFile]> = Lazy::new(|| {
 fn test_get_digest() -> Result<(), Error> {
     // Directly test the get_digest fn returns the expected digest.
 
-    let tmp = TempDir::new("test_sha256sum-rs")?;
+    let tmp = tempdir()?;
 
     for TestFile {
         file,
@@ -67,7 +67,7 @@ fn test_handle_file_open_error() {
 fn test_handle_file() -> Result<(), Error> {
     // Hash the content of test files and verify the digest matches the expected string.
 
-    let tmp = TempDir::new("test_sha256sum-rs")?;
+    let tmp = tempdir()?;
     for TestFile {
         file,
         expected_digest,
@@ -91,7 +91,7 @@ fn test_handle_file() -> Result<(), Error> {
 fn test_verify_file() -> Result<(), Error> {
     // Write a line to the test files and test that verify_file status is Ok.
 
-    let tmp = TempDir::new("test_sha256sum-rs")?;
+    let tmp = tempdir()?;
     for TestFile {
         file,
         expected_digest,
@@ -111,7 +111,7 @@ fn test_verify_file() -> Result<(), Error> {
 fn test_verify_file_fails() -> Result<(), Error> {
     // Write the wrong content to the test files and make sure status is Fail.
 
-    let tmp = TempDir::new("test_sha256sum-rs")?;
+    let tmp = tempdir()?;
 
     for TestFile {
         file,
@@ -132,7 +132,7 @@ fn test_verify_file_fails() -> Result<(), Error> {
 fn test_verify_files() -> Result<(), Error> {
     // Read a String containing a digest and filename per line, then verify them.
 
-    let tmp = TempDir::new("test_sha256sum-rs")?;
+    let tmp = tempdir()?;
     let mut check_string = String::new();
 
     for TestFile {
