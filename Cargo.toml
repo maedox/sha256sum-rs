@@ -12,11 +12,11 @@ path = "src/bin/main.rs"
 lto = true
 
 [dependencies]
-data-encoding = "2.8.0"
+data-encoding = "2.9"
 rayon = "1.7"
 ring = "0.17"
 structopt = "0.3"
 
 [dev-dependencies]
 tempdir = "0.3"
-tempfile = "3.19.1"
+tempfile = "3.20"
