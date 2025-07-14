@@ -42,9 +42,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let digest = get_digest(input.as_bytes())?;
 
                 if args.bsd_style {
-                    println!("SHA256 (-) = {}", digest);
+                    println!("SHA256 (-) = {digest}");
                 } else {
-                    println!("{}  -", digest);
+                    println!("{digest}  -");
                 }
                 0
             }

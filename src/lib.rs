@@ -50,7 +50,7 @@ fn handle_errors(outcomes: &[Outcome]) -> usize {
         .count()
     {
         count if count > 0 => {
-            eprintln!("WARNING: {} error(s) occured while checking.", count);
+            eprintln!("WARNING: {count} error(s) occured while checking.");
             1
         }
         _ => 0,
@@ -61,7 +61,7 @@ fn handle_failures(outcomes: &[Outcome]) -> usize {
     // Count failures and return the appropriate status code.
     match outcomes.iter().filter(|o| o.status == Status::Fail).count() {
         count if count > 0 => {
-            eprintln!("WARNING: {} computed checksums did NOT match.", count);
+            eprintln!("WARNING: {count} computed checksums did NOT match.");
             1
         }
         _ => 0,
@@ -98,8 +98,7 @@ pub fn verify_files(input: String) -> Vec<Outcome> {
             } else {
                 let outcome = Outcome {
                     message: format!(
-                        "Checksum and filename could not be read from line: {}",
-                        line
+                        "Checksum and filename could not be read from line: {line}"
                     ),
                     status: Status::Error,
                 };
